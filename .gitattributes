@@ -1,0 +1,4 @@
+# .gitattributes
+# Do not to attempt any end-of-line conversion upon checkin or checkout:
+* -text
+#EOF
