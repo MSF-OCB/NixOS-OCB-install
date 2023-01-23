@@ -1,5 +1,6 @@
 #! /usr/bin/env nix-shell
 #! nix-shell -i bash --packages bash nettools git
+# shellcheck shell=bash
 
 # To install NixOS Linux with MSF-OCB configuration on a machine not yet installed with any NixOS Linux:
 # - follow latest instructions at <https://github.com/MSF-OCB/NixOS-OCB/wiki/Install-NixOS> , in particular:
@@ -17,7 +18,7 @@ shopt -s extglob globstar nullglob
 
 declare -r script_name="install.sh"
 # TODO: keep script version string up-to-date
-declare -r script_version="v2023.01.23.0-1REPO-BETA1"
+declare -r script_version="v2023.01.23.0-1REPO-BETA2"
 declare -r script_title="MSF-OCB customised NixOS Linux installation script (single merged repo)"
 
 ##########

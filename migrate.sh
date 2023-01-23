@@ -1,5 +1,6 @@
 #! /usr/bin/env nix-shell
 #! nix-shell -i bash --packages bash nettools git
+# shellcheck shell=bash
 
 # To migrate a NixOS Linux system installed with the old 2-repo MSF-OCB NixOS configuration to the new 1-repo one,
 # follow latest instructions at <https://github.com/MSF-OCB/NixOS-OCB/wiki/> (private repo).
@@ -12,7 +13,7 @@ shopt -s extglob globstar nullglob
 
 declare -r script_name="migrate.sh"
 # TODO: keep script version string up-to-date
-declare -r script_version="v2023.01.23.0-BETA1"
+declare -r script_version="v2023.01.23.0-BETA2"
 declare -r script_title="MSF-OCB custom NixOS Linux configuration 2-repo to 1-repo migration script (2023-01)"
 
 ##########
