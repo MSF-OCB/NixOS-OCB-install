@@ -1,4 +1,5 @@
-#!/usr/bin/env bash
+#! /usr/bin/env nix-shell
+#! nix-shell -i bash --packages bash nettools git
 
 # To install NixOS Linux with MSF-OCB configuration on a machine not yet installed with any NixOS Linux:
 # - follow latest instructions at <https://github.com/MSF-OCB/NixOS-OCB/wiki/Install-NixOS> , in particular:
@@ -16,7 +17,7 @@ shopt -s extglob globstar nullglob
 
 declare -r script_name="install.sh"
 # TODO: keep script version string up-to-date
-declare -r script_version="v2023.01.12.0-MERGE-BETA2"
+declare -r script_version="v2023.01.23.0-1REPO-BETA1"
 declare -r script_title="MSF-OCB customised NixOS Linux installation script (single merged repo)"
 
 ##########
@@ -342,6 +343,15 @@ declare -r main_repo_branch="main"
 declare -r github_nixos_robot_name="OCB NixOS Robot"
 declare -r github_nixos_robot_email="69807852+nixos-ocb@users.noreply.github.com"
 
+# If command 'git' is not available, try to get it via its Nix package and add its folder to the system path
+if ! type -p "git" >&/dev/null; then
+  echo_info "downloading missing required software package 'git'..."
+  PATH="$(nix-build --no-out-link -E '(import <nixpkgs> {})' -A 'git')/bin:${PATH}"
+  export PATH
+  git --version
+  echo
+fi
+
 echo_info "parameters:"
 echo "- hostname for the new system: \"${target_hostname}\""
 if ((do_install)); then
@@ -362,15 +372,6 @@ echo "- GitHub.com private repository (@branch): \"${github_org_name}/${main_rep
 echo
 echo "*WARNING*: *ALL* contents of any disk devices/partitions mentioned above will be permanently *LOST*!"
 echo
-
-# If command 'git' is not available, try to get it via its Nix package and add its folder to the system path
-if ! which "git" >&/dev/null; then
-  echo_info "downloading missing required software package 'git'..."
-  PATH="$(nix-build --no-out-link -E '(import <nixpkgs> {})' -A 'git')/bin:${PATH}"
-  export PATH
-  git --version
-  echo
-fi
 
 echo_info "about to start MSF-OCB NixOS $( ((do_install)) && echo "installation" || echo "configuration") for host \"${target_hostname}\" on $(date +'%F_%T%z')..."
 echo "(Press [Ctrl+C] *now* to abort)"
@@ -554,21 +555,20 @@ fi
 
   if ((test_auth_rc != 0)); then
     echo -e "\nThis server's SSH key does not give us access to GitHub."
-    echo "Please add the following public key to the file"
-    echo -e "json/tunnels.d/tunnels.json in the repo \"${main_repo_name}\":\n"
+    echo "Please add the following public key for this host \"${target_hostname}\""
+    echo -e "to the file \"json/tunnels.d/tunnels.json\" in the repo \"${main_repo_name}\":\n"
     cat /tmp/id_tunnel.pub
     echo -e "\nThe installation will automatically continue once the key"
-    echo "has been added to GitHub and the deployment actions have"
-    echo "completed."
+    echo "has been added to GitHub and the deployment actions have completed."
     echo -e "\nIf you want me to generate a new key pair instead, then"
-    echo "remove /tmp/id_tunnel and /tmp/id_tunnel.pub and restart"
+    echo "remove files \"/tmp/id_tunnel\" and \"/tmp/id_tunnel.pub\" and restart"
     echo "the installer. You will then see this message again, and"
     echo -e "you will need to add the newly generated key to GitHub."
     echo -e "\nThe installer will continue once you have added the key"
     echo -e "to GitHub and the deployment actions have successfully run...\n"
 
     while ((test_auth_rc != 0)); do
-      sleep 5
+      sleep 10
       echo -n "."
       test_auth
       test_auth_rc="${?}"
@@ -600,7 +600,7 @@ if ((create_data_part)); then
   fi
 
   echo
-  echo_info "downloading MSF-OCB NixOS configuration files into \"${nixos_dir}\" (keyfile)..."
+  echo_info "downloading MSF-OCB NixOS configuration files into directory \"${nixos_dir}\" (keyfile)..."
   git clone --filter=blob:none --single-branch --branch "${main_repo_branch}" "${main_repo}" "${nixos_dir}"
   echo
 
@@ -631,7 +631,7 @@ if ((create_data_part)); then
     git -C "${nixos_dir}" push -u origin "${branch_name}"
     git -C "${nixos_dir}" checkout "${main_repo_branch}"
 
-    echo -e "\n\nThe encryption key for this server has just been committed to GitHub"
+    echo -e "\n\nThe data encryption key for this host \"${target_hostname}\" has just been committed to GitHub."
     echo -e "Please go to the following link to create a pull request:\n"
     echo -e "https://github.com/${github_org_name}/${main_repo_name}/pull/new/${branch_name}\n"
     echo -e "The installer will continue once the pull request has been merged into branch \"${main_repo_branch}\".\n"
@@ -651,7 +651,7 @@ fi
 # Now that the repos on GitHub should contain all the information,
 # we throw away the clones we made so far and start over with clean ones.
 echo
-echo_info "downloading MSF-OCB NixOS configuration files into \"${nixos_dir}\"..."
+echo_info "downloading MSF-OCB NixOS configuration files into directory \"${nixos_dir}\"..."
 rm --recursive --preserve-root --force "${nixos_dir}"
 git clone --filter=blob:none --single-branch --branch "${main_repo_branch}" "${main_repo}" "${nixos_dir}"
 

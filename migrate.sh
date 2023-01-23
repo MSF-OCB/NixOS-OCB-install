@@ -1,4 +1,5 @@
-#!/usr/bin/env bash
+#! /usr/bin/env nix-shell
+#! nix-shell -i bash --packages bash nettools git
 
 # To migrate a NixOS Linux system installed with the old 2-repo MSF-OCB NixOS configuration to the new 1-repo one,
 # follow latest instructions at <https://github.com/MSF-OCB/NixOS-OCB/wiki/> (private repo).
@@ -11,7 +12,7 @@ shopt -s extglob globstar nullglob
 
 declare -r script_name="migrate.sh"
 # TODO: keep script version string up-to-date
-declare -r script_version="v2023.01.18.0-ALPHA0"
+declare -r script_version="v2023.01.23.0-BETA1"
 declare -r script_title="MSF-OCB custom NixOS Linux configuration 2-repo to 1-repo migration script (2023-01)"
 
 ##########
@@ -45,7 +46,7 @@ if ((EUID != 0)); then
 fi
 
 # shellcheck disable=SC2155
-declare -r hostname="$(hostname)"
+declare -r hostname="${HOSTNAME:-$(hostname)}"
 
 declare -r nixos_cfg_dir="/etc/nixos"
 declare -r nixos_cfg_2repo_dir="${nixos_cfg_dir}.2repo"
@@ -61,7 +62,6 @@ declare -r main_repo_branch="main"
 # declare -r github_nixos_robot_name="OCB NixOS Robot"
 # declare -r github_nixos_robot_email="69807852+nixos-ocb@users.noreply.github.com"
 
-echo
 echo_info "checking current NixOS configuration directory \"${nixos_cfg_dir}\"..."
 if [[ ! -d "${nixos_cfg_dir}" ]]; then
   echo_err "standard NixOS configuration directory \"${nixos_cfg_dir}\" not found!"
@@ -85,10 +85,6 @@ if [[ -d "${nixos_cfg_2repo_dir}" ]]; then
   exit 106
 fi
 
-echo_info "parameters:"
-echo "- GitHub.com private repository (@branch): \"${github_org_name}/${main_repo_name}@${main_repo_branch}\""
-echo
-
 # If command 'git' is not available, try to get it via its Nix package and add its folder to the system path
 if ! type -p "git" >&/dev/null; then
   echo_info "downloading missing required software package 'git'..."
@@ -97,6 +93,15 @@ if ! type -p "git" >&/dev/null; then
   git --version
   echo
 fi
+
+if [[ -d "${nixos_cfg_1repo_dir}" ]]; then
+  echo_info "temporary new 1-repo NixOS configuration directory \"${nixos_cfg_1repo_dir}\" already exists - it will first get purged."
+  echo
+fi
+
+echo_info "parameters:"
+echo "- GitHub.com private repository (@branch): \"${github_org_name}/${main_repo_name}@${main_repo_branch}\""
+echo
 
 echo_info "about to start the migration of host \"${hostname}\" to the new 1-repo MSF-OCB NixOS configuration on $(date +'%F_%T%z')..."
 echo "(Press [Ctrl+C] *now* to abort)"
@@ -114,7 +119,7 @@ if [[ -d "${nixos_cfg_1repo_dir}" ]]; then
 fi
 
 echo
-echo_info "downloading new 1-repo MSF-OCB NixOS configuration files into \"${nixos_cfg_1repo_dir}\"..."
+echo_info "downloading new 1-repo MSF-OCB NixOS configuration files into directory \"${nixos_cfg_1repo_dir}\"..."
 mkdir --parents --verbose -- "${nixos_cfg_1repo_dir}"
 chmod --reference="${nixos_cfg_dir}" --preserve-root --changes -- "${nixos_cfg_1repo_dir}"
 chown --reference="${nixos_cfg_dir}" --preserve-root --changes -- "${nixos_cfg_1repo_dir}"
