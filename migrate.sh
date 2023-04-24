@@ -13,7 +13,7 @@ shopt -s extglob globstar nullglob
 
 declare -r script_name="migrate.sh"
 # TODO: keep script version string up-to-date
-declare -r script_version="v2023.02.03.0-BETA1"
+declare -r script_version="v2023.04.24.0"
 declare -r script_title="MSF-OCB custom NixOS Linux configuration 2-repo to 1-repo migration script (2023-01)"
 
 ##########
@@ -107,7 +107,7 @@ echo
 echo_info "about to start the migration of host \"${hostname}\" to the new 1-repo MSF-OCB NixOS configuration on $(date +'%F_%T%z')..."
 echo "(Press [Ctrl+C] *now* to abort)"
 echo -ne "\n--> countdown before proceeding: "
-for countdown in $(seq 9 -1 0); do
+for ((countdown = 3; countdown >= 0; countdown--)); do
   echo -n "${countdown} "
   sleep 1
 done
@@ -132,12 +132,6 @@ echo
 echo_info "switching directory \"${nixos_cfg_dir}\" to new 1-repo MSF-OCB NixOS configuration files..."
 mv --verbose -- "${nixos_cfg_dir}" "${nixos_cfg_2repo_dir}"
 mv --verbose -- "${nixos_cfg_1repo_dir}" "${nixos_cfg_dir}"
-
-echo
-echo_info "updating Nix channels..."
-nix-channel --add https://nix-channel-redirect.ocb.msf.org nixos
-nix-channel --list
-nix-channel --update nixos
 
 # Generate hardware-configuration.nix, but omit the filesystems which
 # we already define statically in eval_host.nix.

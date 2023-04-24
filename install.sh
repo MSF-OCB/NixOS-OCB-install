@@ -18,7 +18,7 @@ shopt -s extglob globstar nullglob
 
 declare -r script_name="install.sh"
 # TODO: keep script version string up-to-date
-declare -r script_version="v2023.01.23.0-1REPO-BETA2"
+declare -r script_version="v2023.04.24.0"
 declare -r script_title="MSF-OCB customised NixOS Linux installation script (single merged repo)"
 
 ##########
@@ -84,7 +84,7 @@ function wait_for_devices() {
   for _fn_dev in "${_fn_devs[@]}"; do
     udevadm settle --exit-if-exists="${_fn_dev}"
   done
-  for _fn_countdown in $(seq 60 -1 0); do
+  for ((_fn_countdown = 60; _fn_countdown >= 0; _fn_countdown--)); do
     _fn_missing=0
     for _fn_dev in "${_fn_devs[@]}"; do
       if [[ ! -b "${_fn_dev}" ]]; then
@@ -377,7 +377,7 @@ echo
 echo_info "about to start MSF-OCB NixOS $( ((do_install)) && echo "installation" || echo "configuration") for host \"${target_hostname}\" on $(date +'%F_%T%z')..."
 echo "(Press [Ctrl+C] *now* to abort)"
 echo -ne "\n--> countdown before proceeding: "
-for countdown in $(seq 9 -1 0); do
+for ((countdown = 5; countdown >= 0; countdown--)); do
   echo -n "${countdown} "
   sleep 1
 done
