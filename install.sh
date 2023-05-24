@@ -651,20 +651,14 @@ EOF_sfdisk_01
   fi
 
   # Now that the repos on GitHub should contain all the information,
-  # we throw away the clones we made so far and start over with clean ones.
+  # we throw away the clones that we made.
   echo
-  echo_info "downloading MSF-OCB NixOS configuration files into directory \"${nixos_dir}\"..."
+  echo_info "removing temporary directory \"${nixos_dir}\"..."
   rm --recursive --preserve-root --force "${nixos_dir}"
-  git clone --filter=blob:none --single-branch --branch "${main_repo_branch}" "${main_repo}" "${nixos_dir}"
 
-  # Generate hardware-configuration.nix, but omit the filesystems which
-  # we already define statically in eval_host.nix.
-  echo
-  echo_info "generating NixOS configuration..."
-  nixos-generate-config ${install_dir:+--root "${install_dir}"} --no-filesystems
-  # Create the settings.nix symlink pointing to the file defining the current server.
-  ln --symbolic "org-config/hosts/${target_hostname}.nix" "${nixos_dir}/settings.nix"
-  cp /tmp/id_tunnel /tmp/id_tunnel.pub "${nixos_dir}/local/"
+  key_dir="${install_dir}/var/lib/msf-ocb/"
+  mkdir --parents "${key_dir}"
+  cp /tmp/id_tunnel /tmp/id_tunnel.pub "${key_dir}"
 
   # Create an encrypted data partition, unless requested not to do so
   if ((create_data_part)); then
@@ -709,11 +703,18 @@ EOF_sfdisk_01
   if ((do_install)); then
     echo
     echo_info "installing the new customised NixOS system on local disk..."
-    nixos-install --no-root-passwd --max-jobs 4
+    GIT_SSH_COMMAND="ssh -i ${key_dir}/id_tunnel" nixos-install \
+      --no-root-passwd \
+      --max-jobs 4 \
+      --option extra-experimental-features 'flakes nix-command' \
+      --flake git+ssh://git@github.com/MSF-OCB/NixOS-OCB.git
   else
     echo
     echo_info "rebuilding the configuration of this pre-installed NixOS system..."
-    nixos-rebuild switch
+    GIT_SSH_COMMAND="ssh -i ${key_dir}/id_tunnel" nixos-rebuild \
+      --option extra-experimental-features 'flakes nix-command' \
+      --flake git+ssh://git@github.com/MSF-OCB/NixOS-OCB.git \
+      switch
 
     if [[ ! -b /dev/disk/by-label/nixos_root && -b /dev/disk/by-label/nixos ]]; then
       echo
