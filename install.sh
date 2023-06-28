@@ -19,8 +19,8 @@
 
   declare -r script_name="install.sh"
   # TODO: keep script version string up-to-date
-  declare -r script_version="v2023.05.16.0"
-  declare -r script_title="MSF-OCB customised NixOS Linux installation script (single merged repo)"
+  declare -r script_version="v2023.06.28.0"
+  declare -r script_title="MSF-OCB customised NixOS Linux installation script (unified repo + flakes)"
 
   ##########
   ### FUNCTIONS:
@@ -342,6 +342,7 @@
   declare -r main_repo_name="NixOS-OCB"
   declare -r main_repo="git@github.com:${github_org_name}/${main_repo_name}.git"
   declare -r main_repo_branch="main"
+  declare -r main_repo_flake="git+ssh://git@github.com/${github_org_name}/${main_repo_name}.git"
   declare -r github_nixos_robot_name="OCB NixOS Robot"
   declare -r github_nixos_robot_email="69807852+nixos-ocb@users.noreply.github.com"
 
@@ -707,13 +708,13 @@ EOF_sfdisk_01
       --no-root-passwd \
       --max-jobs 4 \
       --option extra-experimental-features 'flakes nix-command' \
-      --flake git+ssh://git@github.com/MSF-OCB/NixOS-OCB.git
+      --flake "${main_repo_flake}"
   else
     echo
     echo_info "rebuilding the configuration of this pre-installed NixOS system..."
     GIT_SSH_COMMAND="ssh -i ${key_dir}/id_tunnel" nixos-rebuild \
       --option extra-experimental-features 'flakes nix-command' \
-      --flake git+ssh://git@github.com/MSF-OCB/NixOS-OCB.git \
+      --flake "${main_repo_flake}" \
       switch
 
     if [[ ! -b /dev/disk/by-label/nixos_root && -b /dev/disk/by-label/nixos ]]; then
