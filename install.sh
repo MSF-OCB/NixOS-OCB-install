@@ -6,7 +6,7 @@
   # To install NixOS Linux with MSF-OCB configuration on a machine not yet installed with any NixOS Linux:
   # - follow latest instructions at <https://github.com/MSF-OCB/NixOS-OCB/wiki/Install-NixOS> , in particular:
   #   - to prepare the configuration for this machine in private repository <https://github.com/MSF-OCB/NixOS-OCB>
-  #   - to set up a USB key for booting with the latest MSF-OCB NixOS Rescue ISO
+  #   - to set up a USB key for booting with the latest MSF-OCB NixOS Rescue ISO image
   # - boot the machine with this bootable USB key and wait for the command prompt
   # - then at the command prompt, launch the installation with a command _similar_ to the following
   #   (replace <placeholders> with suitable values - see usage documentation for reference), e.g.:
@@ -19,7 +19,7 @@
 
   declare -r script_name="install.sh"
   # TODO: keep script version string up-to-date
-  declare -r script_version="v2023.06.28.0"
+  declare -r script_version="v2023.06.29.0"
   declare -r script_title="MSF-OCB customised NixOS Linux installation script (unified repo + flakes)"
 
   ##########
@@ -337,6 +337,12 @@
     exit 107
   fi
 
+  if [ ! -L /etc/channels/nixpkgs ]; then
+    echo_err "this installer no longer works on old NixOS images without Nix flake support!"
+    echo "Please try again with an up-to-date MSF-OCB NixOS installer ISO image."
+    exit 108
+  fi
+
   # Define constants for use of MSF-OCB GitHub repositories
   declare -r github_org_name="MSF-OCB"
   declare -r main_repo_name="NixOS-OCB"
@@ -345,11 +351,6 @@
   declare -r main_repo_flake="git+ssh://git@github.com/${github_org_name}/${main_repo_name}.git"
   declare -r github_nixos_robot_name="OCB NixOS Robot"
   declare -r github_nixos_robot_email="69807852+nixos-ocb@users.noreply.github.com"
-
-  if [ ! -L /etc/channels/nixpkgs ]; then
-    echo "This installer no longer works on old images without flake support."
-    echo "Please use an up-to-date installer ISO and try again."
-  fi
 
   # If command 'git' is not available, try to get it via its Nix package and add its folder to the system path
   if ! type -p "git" >&/dev/null; then
