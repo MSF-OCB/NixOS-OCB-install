@@ -346,10 +346,15 @@
   declare -r github_nixos_robot_name="OCB NixOS Robot"
   declare -r github_nixos_robot_email="69807852+nixos-ocb@users.noreply.github.com"
 
+  if [ ! -L /etc/channels/nixpkgs ]; then
+    echo "This installer no longer works on old images without flake support."
+    echo "Please use an up-to-date installer ISO and try again."
+  fi
+
   # If command 'git' is not available, try to get it via its Nix package and add its folder to the system path
   if ! type -p "git" >&/dev/null; then
     echo_info "downloading missing required software package 'git'..."
-    PATH="$(nix-build --no-out-link -E '(import <nixpkgs> {})' -A 'git')/bin:${PATH}"
+    PATH="$(nix build 'nixpkgs#git')/bin:${PATH}"
     export PATH
     git --version
     echo
@@ -517,11 +522,6 @@ EOF_sfdisk_01
     fi
   fi
 
-  # We update the nix channel to make sure that we install up-to-date packages
-  echo
-  echo_info "updating the nix channel..."
-  nix-channel --update
-
   if [[ ! -f "/tmp/id_tunnel" || ! -f "/tmp/id_tunnel.pub" ]]; then
     echo
     echo_info "generating a new SSH key pair for this host \"${target_hostname}\"..."
@@ -609,22 +609,22 @@ EOF_sfdisk_01
 
     function decrypt_secrets() {
       mkdir --parents "${secrets_dir}"
-      nix-shell "${nixos_dir}/scripts/python_nixostools/shell.nix" \
-        --run "decrypt_server_secrets \
-             --server_name '${target_hostname}' \
-             --secrets_path '${config_dir}/secrets/generated/generated-secrets.yml' \
-             --output_path '${secrets_dir}' \
-             --private_key_file /tmp/id_tunnel > /dev/null"
+      nix shell "${main_repo_flake}#nixostools" \
+        --command "decrypt_server_secrets \
+                  --server_name '${target_hostname}' \
+                  --secrets_path '${config_dir}/secrets/generated/generated-secrets.yml' \
+                  --output_path '${secrets_dir}' \
+                  --private_key_file /tmp/id_tunnel > /dev/null"
     }
 
     decrypt_secrets
     declare -r keyfile="${secrets_dir}/keyfile"
     declare -r secrets_master_file="${config_dir}/secrets/master/nixos_encryption-secrets.yml"
     if [[ ! -f "${keyfile}" ]]; then
-      nix-shell "${nixos_dir}/scripts/python_nixostools/shell.nix" \
-        --run "add_encryption_key \
-             --hostname '${target_hostname}' \
-             --secrets_file '${secrets_master_file}'"
+      nix shell "${main_repo_flake}#nixostools" \
+        --command "add_encryption_key \
+                  --hostname '${target_hostname}' \
+                  --secrets_file '${secrets_master_file}'"
 
       random_id="$(tr --complement --delete 'A-Za-z0-9' </dev/urandom | head --bytes=10)" || true
       branch_name="installer_commit_enc_key_${target_hostname}_${random_id}"
