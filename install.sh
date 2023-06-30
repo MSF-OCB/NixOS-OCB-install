@@ -19,7 +19,7 @@
 
   declare -r script_name="install.sh"
   # TODO: keep script version string up-to-date
-  declare -r script_version="v2023.06.29.1"
+  declare -r script_version="v2023.06.29.0"
   declare -r script_title="MSF-OCB customised NixOS Linux installation script (unified repo + flakes)"
 
   ##########
@@ -549,14 +549,13 @@ EOF_sfdisk_01
       # If this command exists with a zero exit code, then we have successfully
       # authenticated to GitHub.
       git -c core.sshCommand="ssh -F none -o IdentitiesOnly=yes -i /tmp/id_tunnel" \
-        ls-remote "${main_repo}"
+        ls-remote "${main_repo}" >/dev/null 2>&1
     }
 
     echo
     echo_info "trying to authenticate to GitHub.com private repository \"${main_repo_name}\"..."
-    test_auth >/dev/null
+    test_auth
     declare -i test_auth_rc="${?}"
-    declare -i test_auth_tries=1
 
     if ((test_auth_rc != 0)); then
       echo -e "\nThis server's SSH key does not give us access to GitHub."
@@ -575,17 +574,8 @@ EOF_sfdisk_01
       while ((test_auth_rc != 0)); do
         sleep 10
         echo -n "."
-        if ((test_auth_tries % 18 != 0)); then
-          test_auth >/dev/null 2>&1
-          test_auth_rc="${?}"
-        else
-          echo -e "\n"
-          test_auth
-          test_auth_rc="${?}"
-          echo "+ exit code: ${test_auth_rc}"
-          echo
-        fi
-        ((test_auth_tries++))
+        test_auth
+        test_auth_rc="${?}"
       done
       echo
     fi
@@ -625,14 +615,13 @@ EOF_sfdisk_01
                   --server_name '${target_hostname}' \
                   --secrets_path '${config_dir}/secrets/generated/generated-secrets.yml' \
                   --output_path '${secrets_dir}' \
-                  --private_key_file /tmp/id_tunnel"
+                  --private_key_file /tmp/id_tunnel > /dev/null"
     }
 
-    decrypt_secrets >/dev/null
-    declare -i decrypt_secrets_tries=1
-    declare -r secrets_key_file="${secrets_dir}/keyfile"
+    decrypt_secrets
+    declare -r keyfile="${secrets_dir}/keyfile"
     declare -r secrets_master_file="${config_dir}/secrets/master/nixos_encryption-secrets.yml"
-    if [[ ! -f "${secrets_key_file}" ]]; then
+    if [[ ! -f "${keyfile}" ]]; then
       nix shell "${main_repo_flake}#nixostools" \
         --command "add_encryption_key \
                   --hostname '${target_hostname}' \
@@ -651,25 +640,16 @@ EOF_sfdisk_01
       echo -e "https://github.com/${github_org_name}/${main_repo_name}/pull/new/${branch_name}\n"
       echo -e "The installer will continue once the pull request has been merged into branch \"${main_repo_branch}\".\n"
 
-      while [[ ! -f "${secrets_key_file}" ]]; do
-        sleep 10
+      while [[ ! -f "${keyfile}" ]]; do
         echo -n "."
-        if ((decrypt_secrets_tries % 18 != 0)); then
-          git -C "${nixos_dir}" pull >/dev/null 2>&1
-          decrypt_secrets >/dev/null
-        else
-          echo -e "\n"
-          git -C "${nixos_dir}" pull
-          echo
-          decrypt_secrets
-          echo "+ exit code: ${?}"
-          echo
+        git -C "${nixos_dir}" pull >/dev/null 2>&1
+        decrypt_secrets
+        if [[ ! -f "${keyfile}" ]]; then
+          sleep 10
         fi
-        ((decrypt_secrets_tries++))
       done
       echo
     fi
-    echo_info "found the data encryption key for this host \"${target_hostname}\": \"${secrets_key_file}\"."
   fi
 
   # Now that the repos on GitHub should contain all the information,
@@ -678,9 +658,9 @@ EOF_sfdisk_01
   echo_info "removing temporary directory \"${nixos_dir}\"..."
   rm --recursive --preserve-root --force "${nixos_dir}"
 
-  declare -r org_key_dir="${install_dir}/var/lib/msf-ocb"
-  mkdir --parents "${org_key_dir}"
-  cp /tmp/id_tunnel /tmp/id_tunnel.pub "${org_key_dir}"
+  key_dir="${install_dir}/var/lib/msf-ocb/"
+  mkdir --parents "${key_dir}"
+  cp /tmp/id_tunnel /tmp/id_tunnel.pub "${key_dir}"
 
   # Create an encrypted data partition, unless requested not to do so
   if ((create_data_part)); then
@@ -702,10 +682,10 @@ EOF_sfdisk_01
       --use-urandom \
       luksFormat \
       --type luks2 \
-      --key-file "${secrets_key_file}" \
+      --key-file "${secrets_dir}/keyfile" \
       "${data_dev}"
     cryptsetup open \
-      --key-file "${secrets_key_file}" \
+      --key-file "${secrets_dir}/keyfile" \
       "${data_dev}" nixos_data_decrypted
     mkfs.ext4 -e remount-ro \
       -m 1 \
@@ -725,7 +705,7 @@ EOF_sfdisk_01
   if ((do_install)); then
     echo
     echo_info "installing the new customised NixOS system on local disk..."
-    GIT_SSH_COMMAND="ssh -i '${org_key_dir}/id_tunnel'" nixos-install \
+    GIT_SSH_COMMAND="ssh -i ${key_dir}/id_tunnel" nixos-install \
       --no-root-passwd \
       --max-jobs 4 \
       --option extra-experimental-features 'flakes nix-command' \
@@ -733,7 +713,7 @@ EOF_sfdisk_01
   else
     echo
     echo_info "rebuilding the configuration of this pre-installed NixOS system..."
-    GIT_SSH_COMMAND="ssh -i '${org_key_dir}/id_tunnel'" nixos-rebuild \
+    GIT_SSH_COMMAND="ssh -i ${key_dir}/id_tunnel" nixos-rebuild \
       --option extra-experimental-features 'flakes nix-command' \
       --flake "${main_repo_flake}" \
       switch
