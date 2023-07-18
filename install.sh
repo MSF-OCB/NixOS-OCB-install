@@ -6,7 +6,7 @@
   # To install NixOS Linux with MSF-OCB configuration on a machine not yet installed with any NixOS Linux:
   # - follow latest instructions at <https://github.com/MSF-OCB/NixOS-OCB/wiki/Install-NixOS> , in particular:
   #   - to prepare the configuration for this machine in private repository <https://github.com/MSF-OCB/NixOS-OCB>
-  #   - to set up a USB key for booting with the latest MSF-OCB NixOS Rescue ISO
+  #   - to set up a USB key for booting with the latest MSF-OCB NixOS Rescue ISO image
   # - boot the machine with this bootable USB key and wait for the command prompt
   # - then at the command prompt, launch the installation with a command _similar_ to the following
   #   (replace <placeholders> with suitable values - see usage documentation for reference), e.g.:
@@ -19,8 +19,8 @@
 
   declare -r script_name="install.sh"
   # TODO: keep script version string up-to-date
-  declare -r script_version="v2023.05.16.0"
-  declare -r script_title="MSF-OCB customised NixOS Linux installation script (single merged repo)"
+  declare -r script_version="v2023.06.29.0"
+  declare -r script_title="MSF-OCB customised NixOS Linux installation script (unified repo + flakes)"
 
   ##########
   ### FUNCTIONS:
@@ -337,18 +337,25 @@
     exit 107
   fi
 
+  if [ ! -L /etc/channels/nixpkgs ]; then
+    echo_err "this installer no longer works on old NixOS images without Nix flake support!"
+    echo "Please try again with an up-to-date MSF-OCB NixOS installer ISO image."
+    exit 108
+  fi
+
   # Define constants for use of MSF-OCB GitHub repositories
   declare -r github_org_name="MSF-OCB"
   declare -r main_repo_name="NixOS-OCB"
   declare -r main_repo="git@github.com:${github_org_name}/${main_repo_name}.git"
   declare -r main_repo_branch="main"
+  declare -r main_repo_flake="git+ssh://git@github.com/${github_org_name}/${main_repo_name}.git"
   declare -r github_nixos_robot_name="OCB NixOS Robot"
   declare -r github_nixos_robot_email="69807852+nixos-ocb@users.noreply.github.com"
 
   # If command 'git' is not available, try to get it via its Nix package and add its folder to the system path
   if ! type -p "git" >&/dev/null; then
     echo_info "downloading missing required software package 'git'..."
-    PATH="$(nix-build --no-out-link -E '(import <nixpkgs> {})' -A 'git')/bin:${PATH}"
+    PATH="$(nix build 'nixpkgs#git')/bin:${PATH}"
     export PATH
     git --version
     echo
@@ -516,11 +523,6 @@ EOF_sfdisk_01
     fi
   fi
 
-  # We update the nix channel to make sure that we install up-to-date packages
-  echo
-  echo_info "updating the nix channel..."
-  nix-channel --update
-
   if [[ ! -f "/tmp/id_tunnel" || ! -f "/tmp/id_tunnel.pub" ]]; then
     echo
     echo_info "generating a new SSH key pair for this host \"${target_hostname}\"..."
@@ -608,22 +610,22 @@ EOF_sfdisk_01
 
     function decrypt_secrets() {
       mkdir --parents "${secrets_dir}"
-      nix-shell "${nixos_dir}/scripts/python_nixostools/shell.nix" \
-        --run "decrypt_server_secrets \
-             --server_name '${target_hostname}' \
-             --secrets_path '${config_dir}/secrets/generated/generated-secrets.yml' \
-             --output_path '${secrets_dir}' \
-             --private_key_file /tmp/id_tunnel > /dev/null"
+      nix shell "${main_repo_flake}#nixostools" \
+        --command "decrypt_server_secrets \
+                  --server_name '${target_hostname}' \
+                  --secrets_path '${config_dir}/secrets/generated/generated-secrets.yml' \
+                  --output_path '${secrets_dir}' \
+                  --private_key_file /tmp/id_tunnel > /dev/null"
     }
 
     decrypt_secrets
     declare -r keyfile="${secrets_dir}/keyfile"
     declare -r secrets_master_file="${config_dir}/secrets/master/nixos_encryption-secrets.yml"
     if [[ ! -f "${keyfile}" ]]; then
-      nix-shell "${nixos_dir}/scripts/python_nixostools/shell.nix" \
-        --run "add_encryption_key \
-             --hostname '${target_hostname}' \
-             --secrets_file '${secrets_master_file}'"
+      nix shell "${main_repo_flake}#nixostools" \
+        --command "add_encryption_key \
+                  --hostname '${target_hostname}' \
+                  --secrets_file '${secrets_master_file}'"
 
       random_id="$(tr --complement --delete 'A-Za-z0-9' </dev/urandom | head --bytes=10)" || true
       branch_name="installer_commit_enc_key_${target_hostname}_${random_id}"
@@ -651,20 +653,14 @@ EOF_sfdisk_01
   fi
 
   # Now that the repos on GitHub should contain all the information,
-  # we throw away the clones we made so far and start over with clean ones.
+  # we throw away the clones that we made.
   echo
-  echo_info "downloading MSF-OCB NixOS configuration files into directory \"${nixos_dir}\"..."
+  echo_info "removing temporary directory \"${nixos_dir}\"..."
   rm --recursive --preserve-root --force "${nixos_dir}"
-  git clone --filter=blob:none --single-branch --branch "${main_repo_branch}" "${main_repo}" "${nixos_dir}"
 
-  # Generate hardware-configuration.nix, but omit the filesystems which
-  # we already define statically in eval_host.nix.
-  echo
-  echo_info "generating NixOS configuration..."
-  nixos-generate-config ${install_dir:+--root "${install_dir}"} --no-filesystems
-  # Create the settings.nix symlink pointing to the file defining the current server.
-  ln --symbolic "org-config/hosts/${target_hostname}.nix" "${nixos_dir}/settings.nix"
-  cp /tmp/id_tunnel /tmp/id_tunnel.pub "${nixos_dir}/local/"
+  key_dir="${install_dir}/var/lib/msf-ocb/"
+  mkdir --parents "${key_dir}"
+  cp /tmp/id_tunnel /tmp/id_tunnel.pub "${key_dir}"
 
   # Create an encrypted data partition, unless requested not to do so
   if ((create_data_part)); then
@@ -709,11 +705,18 @@ EOF_sfdisk_01
   if ((do_install)); then
     echo
     echo_info "installing the new customised NixOS system on local disk..."
-    nixos-install --no-root-passwd --max-jobs 4
+    GIT_SSH_COMMAND="ssh -i ${key_dir}/id_tunnel" nixos-install \
+      --no-root-passwd \
+      --max-jobs 4 \
+      --option extra-experimental-features 'flakes nix-command' \
+      --flake "${main_repo_flake}"
   else
     echo
     echo_info "rebuilding the configuration of this pre-installed NixOS system..."
-    nixos-rebuild switch
+    GIT_SSH_COMMAND="ssh -i ${key_dir}/id_tunnel" nixos-rebuild \
+      --option extra-experimental-features 'flakes nix-command' \
+      --flake "${main_repo_flake}" \
+      switch
 
     if [[ ! -b /dev/disk/by-label/nixos_root && -b /dev/disk/by-label/nixos ]]; then
       echo
