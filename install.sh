@@ -617,11 +617,11 @@ EOF_sfdisk_01
     function decrypt_secrets() {
       mkdir --parents "${secrets_dir}"
       nix shell "${main_repo_flake}#nixostools" \
-        --command "decrypt_server_secrets \
-                  --server_name '${target_hostname}' \
-                  --secrets_path '${config_dir}/secrets/generated/generated-secrets.yml' \
-                  --output_path '${secrets_dir}' \
-                  --private_key_file /tmp/id_tunnel > /dev/null"
+        --command decrypt_server_secrets \
+                  --server_name "${target_hostname}" \
+                  --secrets_path "${config_dir}/secrets/generated/generated-secrets.yml" \
+                  --output_path "${secrets_dir}" \
+                  --private_key_file /tmp/id_tunnel > /dev/null
     }
 
     decrypt_secrets
@@ -629,9 +629,9 @@ EOF_sfdisk_01
     declare -r secrets_master_file="${config_dir}/secrets/master/nixos_encryption-secrets.yml"
     if [[ ! -f "${keyfile}" ]]; then
       nix shell "${main_repo_flake}#nixostools" \
-        --command "add_encryption_key \
-                  --hostname '${target_hostname}' \
-                  --secrets_file '${secrets_master_file}'"
+        --command add_encryption_key \
+                  --hostname "${target_hostname}" \
+                  --secrets_file "${secrets_master_file}"
 
       random_id="$(tr --complement --delete 'A-Za-z0-9' </dev/urandom | head --bytes=10)" || true
       branch_name="installer_commit_enc_key_${target_hostname}_${random_id}"
