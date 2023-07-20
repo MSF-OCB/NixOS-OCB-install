@@ -524,6 +524,12 @@ EOF_sfdisk_01
   fi
 
   if [[ ! -f "/tmp/id_tunnel" || ! -f "/tmp/id_tunnel.pub" ]]; then
+    if [ -f "/tmp/id_tunnel" ]; then
+      rm --force "/tmp/id_tunnel"
+    fi
+    if [ -f "/tmp/id_tunnel.pub" ]; then
+      rm --force "/tmp/id_tunnel.pub"
+    fi
     echo
     echo_info "generating a new SSH key pair for this host \"${target_hostname}\"..."
     ssh-keygen -a 100 \
