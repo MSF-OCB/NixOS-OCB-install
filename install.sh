@@ -628,9 +628,9 @@ EOF_sfdisk_01
       mkdir --parents "${secrets_dir}"
       nix shell "${main_repo_flake}#nixostools" \
         --command decrypt_server_secrets \
-                  --server_name '${target_hostname}' \
-                  --secrets_path '${config_dir}/secrets/generated/generated-secrets.yml' \
-                  --output_path '${secrets_dir}' \
+                  --server_name "${target_hostname}" \
+                  --secrets_path "${config_dir}/secrets/generated/generated-secrets.yml" \
+                  --output_path "${secrets_dir}" \
                   --private_key_file /tmp/id_tunnel
     }
 
