@@ -19,7 +19,7 @@
 
   declare -r script_name="install.sh"
   # TODO: keep script version string up-to-date
-  declare -r script_version="v2023.07.06.0.ALPHA0"
+  declare -r script_version="v2023.07.26.0.ALPHA0"
   declare -r script_title="MSF-OCB customised NixOS Linux installation script (unified repo + flakes)"
 
   ##########
