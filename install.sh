@@ -735,13 +735,13 @@ EOF_sfdisk_01
       --no-root-passwd \
       --max-jobs 4 \
       --option extra-experimental-features 'flakes nix-command' \
-      --flake "${main_repo_flake}"
+      --flake "${main_repo_flake}#${target_hostname}"
   else
     echo
     echo_info "rebuilding the configuration of this pre-installed NixOS system..."
     GIT_SSH_COMMAND="ssh -i '${org_key_dir}/id_tunnel'" nixos-rebuild \
       --option extra-experimental-features 'flakes nix-command' \
-      --flake "${main_repo_flake}" \
+      --flake "${main_repo_flake}#${target_hostname}" \
       switch
 
     if [[ ! -b /dev/disk/by-label/nixos_root && -b /dev/disk/by-label/nixos ]]; then
