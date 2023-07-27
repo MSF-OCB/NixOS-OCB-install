@@ -735,7 +735,7 @@ EOF_sfdisk_01
       --no-root-passwd \
       --max-jobs 4 \
       --option extra-experimental-features 'flakes nix-command' \
-      --flake "${main_repo_flake}#${target_hostname}"
+      --flake "${main_repo_flake}#nixosConfigurationsForInstaller.${target_hostname}"
   else
     echo
     echo_info "rebuilding the configuration of this pre-installed NixOS system..."
