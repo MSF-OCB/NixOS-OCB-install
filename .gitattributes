@@ -1,4 +1,6 @@
 # .gitattributes
+# For general usage reference on this Git configuration file, see e.g.: <https://git-scm.com/docs/gitattributes>.
+#
 # Do not to attempt any end-of-line conversion upon checkin or checkout:
 * -text
 #EOF

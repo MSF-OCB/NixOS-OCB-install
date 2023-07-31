@@ -1,0 +1,6 @@
+# .gitignore
+# For general usage reference on this Git configuration file, see e.g.: <https://git-scm.com/docs/gitignore>.
+#
+/.idea/
+/.vscode/
+#EOF

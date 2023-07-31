@@ -19,7 +19,7 @@
 
   declare -r script_name="install.sh"
   # TODO: keep script version string up-to-date
-  declare -r script_version="v2023.07.28.0.ALPHA0"
+  declare -r script_version="v2023.07.31.0.BETA2"
   declare -r script_title="MSF-OCB customised NixOS Linux installation script (unified repo + flakes)"
 
   ##########
@@ -586,9 +586,10 @@ EOF_sfdisk_01
           test_auth_rc="${?}"
         else
           echo -e "\n"
+          echo_info "output of try #${test_auth_tries} to authenticate to GitHub.com private repository \"${main_repo_name}\":"
           test_auth
           test_auth_rc="${?}"
-          echo "+ exit code: ${test_auth_rc}"
+          echo_info "exit code of try #${test_auth_tries}: ${test_auth_rc}"
           echo
         fi
         ((test_auth_tries++))
@@ -624,6 +625,8 @@ EOF_sfdisk_01
     git clone --filter=blob:none --single-branch --branch "${main_repo_branch}" "${main_repo}" "${nixos_dir}"
     echo
 
+    echo
+    echo_info "trying to decrypt the data encryption key for host '${target_hostname}'..."
     function decrypt_secrets() {
       mkdir --parents "${secrets_dir}"
       nix shell "${main_repo_flake}#nixostools" \
@@ -634,11 +637,19 @@ EOF_sfdisk_01
                   --private_key_file /tmp/id_tunnel
     }
 
+    function git_pull_and_decrypt_secrets() {
+      git -C "${nixos_dir}" pull
+      echo
+      decrypt_secrets
+    }
+
     decrypt_secrets >/dev/null
     declare -i decrypt_secrets_tries=1
     declare -r secrets_key_file="${secrets_dir}/keyfile"
     declare -r secrets_master_file="${config_dir}/secrets/master/nixos_encryption-secrets.yml"
     if [[ ! -f "${secrets_key_file}" ]]; then
+      echo
+      echo_info "the data encryption key for host '${target_hostname}' was not found - generating a new key..."
       nix shell "${main_repo_flake}#nixostools" \
         --command add_encryption_key \
                   --hostname "${target_hostname}" \
@@ -648,27 +659,29 @@ EOF_sfdisk_01
       branch_name="installer_commit_enc_key_${target_hostname}_${random_id}"
       git -C "${nixos_dir}" checkout -b "${branch_name}"
       git -C "${nixos_dir}" add "${secrets_master_file}"
-      git -C "${nixos_dir}" commit --message "Commit encryption key for host '${target_hostname}'."
+      git -C "${nixos_dir}" commit --message "Commit data encryption key for host '${target_hostname}'."
       git -C "${nixos_dir}" push -u origin "${branch_name}"
       git -C "${nixos_dir}" checkout "${main_repo_branch}"
 
-      echo -e "\n\nThe data encryption key for this host \"${target_hostname}\" has just been committed to GitHub."
+      echo -e "\n\nThe new data encryption key for this host \"${target_hostname}\" has just been committed to GitHub."
       echo -e "Please go to the following link to create a pull request:\n"
       echo -e "https://github.com/${github_org_name}/${main_repo_name}/pull/new/${branch_name}\n"
       echo -e "The installer will continue once the pull request has been merged into branch \"${main_repo_branch}\".\n"
 
+      declare -i git_pull_and_decrypt_secrets_rc=-1
       while [[ ! -f "${secrets_key_file}" ]]; do
         sleep 10
         echo -n "."
         if ((decrypt_secrets_tries % 18 != 0)); then
-          git -C "${nixos_dir}" pull >/dev/null 2>&1
-          decrypt_secrets >/dev/null
+          git_pull_and_decrypt_secrets >/dev/null 2>&1
+          git_pull_and_decrypt_secrets_rc="${?}"
         else
           echo -e "\n"
-          git -C "${nixos_dir}" pull
-          echo
-          decrypt_secrets
-          echo "+ exit code: ${?}"
+          echo_info "output of try #${decrypt_secrets_tries} to pull and decrypt the new data encryption key from repo \"${main_repo_name}@${main_repo_branch}\":"
+          git_pull_and_decrypt_secrets >/dev/null
+          git_pull_and_decrypt_secrets_rc="${?}"
+          echo_info "exit code of try #${decrypt_secrets_tries}: ${git_pull_and_decrypt_secrets_rc}"
+          ls -ldp "${secrets_key_file}" || true
           echo
         fi
         ((decrypt_secrets_tries++))
@@ -676,6 +689,7 @@ EOF_sfdisk_01
       echo
     fi
     echo_info "found the data encryption key for this host \"${target_hostname}\": \"${secrets_key_file}\"."
+    ls -ldp "${secrets_key_file}"
   fi
 
   # Now that the repos on GitHub should contain all the information,
