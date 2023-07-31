@@ -19,7 +19,7 @@
 
   declare -r script_name="install.sh"
   # TODO: keep script version string up-to-date
-  declare -r script_version="v2023.07.31.0.BETA1"
+  declare -r script_version="v2023.07.31.0.BETA2"
   declare -r script_title="MSF-OCB customised NixOS Linux installation script (unified repo + flakes)"
 
   ##########
@@ -681,7 +681,7 @@ EOF_sfdisk_01
           git_pull_and_decrypt_secrets >/dev/null
           git_pull_and_decrypt_secrets_rc="${?}"
           echo_info "exit code of try #${decrypt_secrets_tries}: ${git_pull_and_decrypt_secrets_rc}"
-          ls -ldp "${secrets_key_file}"
+          ls -ldp "${secrets_key_file}" || true
           echo
         fi
         ((decrypt_secrets_tries++))
