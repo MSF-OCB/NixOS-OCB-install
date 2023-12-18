@@ -19,7 +19,7 @@
 
   declare -r script_name="install.sh"
   # TODO: keep script version string up-to-date
-  declare -r script_version="v2023.07.31.0.BETA2"
+  declare -r script_version="v2023.12.18.0"
   declare -r script_title="MSF-OCB customised NixOS Linux installation script (unified repo + flakes)"
 
   ##########
@@ -749,7 +749,7 @@ EOF_sfdisk_01
       --no-root-passwd \
       --max-jobs 4 \
       --option extra-experimental-features 'flakes nix-command' \
-      --flake "${main_repo_flake}#${target_hostname}-install"
+      --flake "${main_repo_flake}#${target_hostname}"
   else
     echo
     echo_info "rebuilding the configuration of this pre-installed NixOS system..."
