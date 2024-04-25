@@ -337,7 +337,7 @@
     exit 107
   fi
 
-  if grep --invert-match --fixed-strings --quiet flakes /etc/nix/nix.conf; then
+  if ! grep --fixed-strings --quiet flakes /etc/nix/nix.conf; then
     echo_err "this installer no longer works on old NixOS images without Nix flake support!"
     echo "Please try again with an up-to-date MSF-OCB NixOS installer ISO image."
     exit 108
