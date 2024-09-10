@@ -19,7 +19,7 @@
 
   declare -r script_name="install.sh"
   # TODO: keep script version string up-to-date
-  declare -r script_version="v2024.04.29.0"
+  declare -r script_version="v2024.09.10.ALPHA0"
   declare -r script_title="MSF-OCB customised NixOS Linux installation script (unified repo + flakes)"
 
   ##########
@@ -646,7 +646,7 @@ EOF_sfdisk_01
     decrypt_secrets >/dev/null
     declare -i decrypt_secrets_tries=1
     declare -r secrets_key_file="${secrets_dir}/keyfile"
-    declare -r rescue_disk_encryption_key_file="${secrets_dir}/rescue-keyfile"
+    declare -r secrets_rescue_key_file="${secrets_dir}/rescue-keyfile"
     declare -r secrets_master_file="${config_dir}/secrets/master/nixos_encryption-secrets.yml"
     if [[ ! -f "${secrets_key_file}" ]]; then
       echo
@@ -726,12 +726,7 @@ EOF_sfdisk_01
       --key-file "${secrets_key_file}" \
       "${data_dev}"
     # Add the rescue disk encryption key to the LUKS device using the primary disk encryption key
-    if cryptsetup luksAddKey "${data_dev}" --key-file="${secrets_key_file}" < "${rescue_disk_encryption_key_file}"; then
-        echo "Rescue disk encryption key successfully added to ${data_dev}"
-    else
-        echo "Failed to add the rescue disk encryption key to ${data_dev}"
-        exit 1
-    fi
+    cryptsetup luksAddKey "${data_dev}" --key-file="${secrets_key_file}" < "${secrets_rescue_key_file}"
     cryptsetup open \
       --key-file "${secrets_key_file}" \
       "${data_dev}" nixos_data_decrypted
@@ -786,8 +781,6 @@ EOF_sfdisk_01
     echo_info "tearing down temporary swap file \"${swapfile}\"..."
     swapoff "${swapfile}"
     rm --force "${swapfile}"
-    echo_info "tearing down rescue key file \"${rescue_disk_encryption_key_file}\"..."
-    rm --force "${rescue_disk_encryption_key_file}"
   fi
 
   echo
