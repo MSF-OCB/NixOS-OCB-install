@@ -19,7 +19,7 @@
 
   declare -r script_name="install.sh"
   # TODO: keep script version string up-to-date
-  declare -r script_version="v2024.09.10.ALPHA0"
+  declare -r script_version="v2024.09.12.ALPHA0"
   declare -r script_title="MSF-OCB customised NixOS Linux installation script (unified repo + flakes)"
 
   ##########
@@ -72,8 +72,12 @@
     echo "${script_name}: ${target_hostname:+\"${target_hostname}\": }$(date -u +'%F_%TZ'):" "${@}"
   }
 
+  function echo_warn() {
+    echo_info "*WARNING*:" "${@}" >&2
+  }
+
   function echo_err() {
-    echo_info "*ERROR*:" "${@}" >&2
+    echo_info "**ERROR**:" "${@}" >&2
   }
 
   # Wait for devices to get ready
@@ -691,6 +695,12 @@ EOF_sfdisk_01
     fi
     echo_info "found the data encryption key for this host \"${target_hostname}\": \"${secrets_key_file}\"."
     ls -ldp "${secrets_key_file}"
+    if [[ -f "${secrets_rescue_key_file}" ]]; then
+      echo_info "found the rescue data encryption key for this host \"${target_hostname}\": \"${secrets_rescue_key_file}\""
+      ls -ldp "${secrets_rescue_key_file}"
+    else
+      echo_warn "not found any rescue data encryption key for this host \"${target_hostname}\"!"
+    fi
   fi
 
   # Now that the repos on GitHub should contain all the information,
@@ -725,8 +735,10 @@ EOF_sfdisk_01
       --type luks2 \
       --key-file "${secrets_key_file}" \
       "${data_dev}"
-    # Add the rescue disk encryption key to the LUKS device using the primary disk encryption key
-    cryptsetup luksAddKey "${data_dev}" --key-file="${secrets_key_file}" < "${secrets_rescue_key_file}"
+    # Add the rescue disk encryption key if it exists to the LUKS device using the primary disk encryption key
+    if [[ -f "${secrets_rescue_key_file}" ]]; then
+      cryptsetup luksAddKey "${data_dev}" --key-file="${secrets_key_file}" < "${secrets_rescue_key_file}"
+    fi
     cryptsetup open \
       --key-file "${secrets_key_file}" \
       "${data_dev}" nixos_data_decrypted
