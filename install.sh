@@ -19,7 +19,7 @@
 
   declare -r script_name="install.sh"
   # TODO: keep script version string up-to-date
-  declare -r script_version="v2024.09.12.ALPHA0"
+  declare -r script_version="v2024.09.12.ALPHA1"
   declare -r script_title="MSF-OCB customised NixOS Linux installation script (unified repo + flakes)"
 
   ##########
@@ -649,21 +649,21 @@ EOF_sfdisk_01
 
     decrypt_secrets >/dev/null
     declare -i decrypt_secrets_tries=1
-    declare -r secrets_key_file="${secrets_dir}/keyfile"
-    declare -r secrets_rescue_key_file="${secrets_dir}/rescue-keyfile"
-    declare -r secrets_master_file="${config_dir}/secrets/master/nixos_encryption-secrets.yml"
-    if [[ ! -f "${secrets_key_file}" ]]; then
+    declare -r data_dev_encrypt_key_file="${secrets_dir}/keyfile"
+    declare -r data_dev_encrypt_rescue_key_file="${secrets_dir}/rescue-keyfile"
+    declare -r data_dev_encrypt_secrets_master_file="${config_dir}/secrets/master/nixos_encryption-secrets.yml"
+    if [[ ! -f "${data_dev_encrypt_key_file}" ]]; then
       echo
       echo_info "the data encryption key for host '${target_hostname}' was not found - generating a new key..."
       nix shell "${main_repo_flake}#nixostools" \
         --command add_encryption_key \
                   --hostname "${target_hostname}" \
-                  --secrets_file "${secrets_master_file}"
+                  --secrets_file "${data_dev_encrypt_secrets_master_file}"
 
       random_id="$(tr --complement --delete 'A-Za-z0-9' </dev/urandom | head --bytes=10)" || true
       branch_name="installer_commit_enc_key_${target_hostname}_${random_id}"
       git -C "${nixos_dir}" checkout -b "${branch_name}"
-      git -C "${nixos_dir}" add "${secrets_master_file}"
+      git -C "${nixos_dir}" add "${data_dev_encrypt_secrets_master_file}"
       git -C "${nixos_dir}" commit --message "Commit data encryption key for host '${target_hostname}'."
       git -C "${nixos_dir}" push -u origin "${branch_name}"
       git -C "${nixos_dir}" checkout "${main_repo_branch}"
@@ -674,7 +674,7 @@ EOF_sfdisk_01
       echo -e "The installer will continue once the pull request has been merged into branch \"${main_repo_branch}\".\n"
 
       declare -i git_pull_and_decrypt_secrets_rc=-1
-      while [[ ! -f "${secrets_key_file}" ]]; do
+      while [[ ! -f "${data_dev_encrypt_key_file}" ]]; do
         sleep 10
         echo -n "."
         if ((decrypt_secrets_tries % 18 != 0)); then
@@ -686,18 +686,18 @@ EOF_sfdisk_01
           git_pull_and_decrypt_secrets >/dev/null
           git_pull_and_decrypt_secrets_rc="${?}"
           echo_info "exit code of try #${decrypt_secrets_tries}: ${git_pull_and_decrypt_secrets_rc}"
-          ls -ldp "${secrets_key_file}" || true
+          ls -ldp "${data_dev_encrypt_key_file}" || true
           echo
         fi
         ((decrypt_secrets_tries++))
       done
       echo
     fi
-    echo_info "found the data encryption key for this host \"${target_hostname}\": \"${secrets_key_file}\"."
-    ls -ldp "${secrets_key_file}"
-    if [[ -f "${secrets_rescue_key_file}" ]]; then
-      echo_info "found the rescue data encryption key for this host \"${target_hostname}\": \"${secrets_rescue_key_file}\""
-      ls -ldp "${secrets_rescue_key_file}"
+    echo_info "found the data encryption key for this host \"${target_hostname}\": \"${data_dev_encrypt_key_file}\"."
+    ls -ldp "${data_dev_encrypt_key_file}"
+    if [[ -f "${data_dev_encrypt_rescue_key_file}" ]]; then
+      echo_info "found the rescue data encryption key for this host \"${target_hostname}\": \"${data_dev_encrypt_rescue_key_file}\""
+      ls -ldp "${data_dev_encrypt_rescue_key_file}"
     else
       echo_warn "not found any rescue data encryption key for this host \"${target_hostname}\"!"
     fi
@@ -733,14 +733,14 @@ EOF_sfdisk_01
       --use-urandom \
       luksFormat \
       --type luks2 \
-      --key-file "${secrets_key_file}" \
+      --key-file "${data_dev_encrypt_key_file}" \
       "${data_dev}"
     # Add the rescue disk encryption key if it exists to the LUKS device using the primary disk encryption key
-    if [[ -f "${secrets_rescue_key_file}" ]]; then
-      cryptsetup luksAddKey "${data_dev}" --key-file="${secrets_key_file}" < "${secrets_rescue_key_file}"
+    if [[ -f "${data_dev_encrypt_rescue_key_file}" ]]; then
+      cryptsetup luksAddKey "${data_dev}" --key-file="${data_dev_encrypt_key_file}" < "${data_dev_encrypt_rescue_key_file}"
     fi
     cryptsetup open \
-      --key-file "${secrets_key_file}" \
+      --key-file "${data_dev_encrypt_key_file}" \
       "${data_dev}" nixos_data_decrypted
     mkfs.ext4 -e remount-ro \
       -m 1 \
