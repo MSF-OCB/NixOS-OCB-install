@@ -641,7 +641,7 @@ EOF_sfdisk_01
                   --secrets_path "${config_dir}/secrets/generated/generated-secrets.yml" \
                   --output_path "${secrets_dir}" \
                   --private_key_file "${id_tunnel_key_file}" \
-                  --extract_all "True"
+                  --extract_all
     }
 
     function git_pull_and_decrypt_secrets() {
