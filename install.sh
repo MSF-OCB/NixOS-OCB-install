@@ -19,7 +19,7 @@
 
   declare -r script_name="install.sh"
   # TODO: keep script version string up-to-date
-  declare -r script_version="v2024.04.29.0"
+  declare -r script_version="v2024.09.12.ALPHA2"
   declare -r script_title="MSF-OCB customised NixOS Linux installation script (unified repo + flakes)"
 
   ##########
@@ -72,8 +72,12 @@
     echo "${script_name}: ${target_hostname:+\"${target_hostname}\": }$(date -u +'%F_%TZ'):" "${@}"
   }
 
+  function echo_warn() {
+    echo_info "*WARNING*:" "${@}" >&2
+  }
+
   function echo_err() {
-    echo_info "*ERROR*:" "${@}" >&2
+    echo_info "**ERROR**:" "${@}" >&2
   }
 
   # Wait for devices to get ready
@@ -523,12 +527,14 @@ EOF_sfdisk_01
     fi
   fi
 
-  if [[ ! -f "/tmp/id_tunnel" || ! -f "/tmp/id_tunnel.pub" ]]; then
-    if [ -f "/tmp/id_tunnel" ]; then
-      rm --force "/tmp/id_tunnel"
+  declare -r id_tunnel_key_file_name="id_tunnel"
+  declare -r id_tunnel_key_file="/tmp/${id_tunnel_key_file_name}"
+  if [[ ! -f "${id_tunnel_key_file}" || ! -f "${id_tunnel_key_file}.pub" ]]; then
+    if [ -f "${id_tunnel_key_file}" ]; then
+      rm --force "${id_tunnel_key_file}"
     fi
-    if [ -f "/tmp/id_tunnel.pub" ]; then
-      rm --force "/tmp/id_tunnel.pub"
+    if [ -f "${id_tunnel_key_file}.pub" ]; then
+      rm --force "${id_tunnel_key_file}.pub"
     fi
     echo
     echo_info "generating a new SSH key pair for this host \"${target_hostname}\"..."
@@ -536,11 +542,11 @@ EOF_sfdisk_01
       -t ed25519 \
       -N "" \
       -C "" \
-      -f /tmp/id_tunnel
+      -f "${id_tunnel_key_file}"
     echo_info "SSH key pair generated."
   else
     # Make sure that we have the right permissions
-    chmod 0400 /tmp/id_tunnel
+    chmod 0400 "${id_tunnel_key_file}"
   fi
 
   # Check whether we can authenticate to GitHub using this server's SSH key.
@@ -554,7 +560,7 @@ EOF_sfdisk_01
       # Try to run a git command on the remote to test the authentication.
       # If this command exists with a zero exit code, then we have successfully
       # authenticated to GitHub.
-      git -c core.sshCommand="ssh -F none -o IdentitiesOnly=yes -i /tmp/id_tunnel" \
+      git -c core.sshCommand="ssh -F none -o IdentitiesOnly=yes -i '${id_tunnel_key_file}'" \
         ls-remote "${main_repo}"
     }
 
@@ -568,11 +574,11 @@ EOF_sfdisk_01
       echo -e "\nThis server's SSH key does not give us access to GitHub."
       echo "Please add the following public key for this host \"${target_hostname}\""
       echo -e "to the file \"json/tunnels.d/tunnels.json\" in the repo \"${main_repo_name}\":\n"
-      cat /tmp/id_tunnel.pub
+      cat "${id_tunnel_key_file}.pub"
       echo -e "\nThe installation will automatically continue once the key"
       echo "has been added to GitHub and the deployment actions have completed."
       echo -e "\nIf you want me to generate a new key pair instead, then"
-      echo "remove files \"/tmp/id_tunnel\" and \"/tmp/id_tunnel.pub\" and restart"
+      echo "remove files \"${id_tunnel_key_file}\" and \"${id_tunnel_key_file}.pub\" and restart"
       echo "the installer. You will then see this message again, and"
       echo -e "you will need to add the newly generated key to GitHub."
       echo -e "\nThe installer will continue once you have added the key"
@@ -603,7 +609,7 @@ EOF_sfdisk_01
   git config --global pull.rebase true
   git config --global user.name "${github_nixos_robot_name}"
   git config --global user.email "${github_nixos_robot_email}"
-  git config --global core.sshCommand "ssh -i /tmp/id_tunnel"
+  git config --global core.sshCommand "ssh -i '${id_tunnel_key_file}'"
 
   if ((create_data_part)); then
     echo
@@ -634,7 +640,8 @@ EOF_sfdisk_01
                   --server_name "${target_hostname}" \
                   --secrets_path "${config_dir}/secrets/generated/generated-secrets.yml" \
                   --output_path "${secrets_dir}" \
-                  --private_key_file /tmp/id_tunnel
+                  --private_key_file "${id_tunnel_key_file}" \
+                  --extract_all
     }
 
     function git_pull_and_decrypt_secrets() {
@@ -645,20 +652,21 @@ EOF_sfdisk_01
 
     decrypt_secrets >/dev/null
     declare -i decrypt_secrets_tries=1
-    declare -r secrets_key_file="${secrets_dir}/keyfile"
-    declare -r secrets_master_file="${config_dir}/secrets/master/nixos_encryption-secrets.yml"
-    if [[ ! -f "${secrets_key_file}" ]]; then
+    declare -r data_dev_encrypt_key_file="${secrets_dir}/keyfile"
+    declare -r data_dev_encrypt_rescue_key_file="${secrets_dir}/rescue-keyfile"
+    declare -r data_dev_encrypt_secrets_master_file="${config_dir}/secrets/master/nixos_encryption-secrets.yml"
+    if [[ ! -f "${data_dev_encrypt_key_file}" ]]; then
       echo
       echo_info "the data encryption key for host '${target_hostname}' was not found - generating a new key..."
       nix shell "${main_repo_flake}#nixostools" \
         --command add_encryption_key \
                   --hostname "${target_hostname}" \
-                  --secrets_file "${secrets_master_file}"
+                  --secrets_file "${data_dev_encrypt_secrets_master_file}"
 
       random_id="$(tr --complement --delete 'A-Za-z0-9' </dev/urandom | head --bytes=10)" || true
       branch_name="installer_commit_enc_key_${target_hostname}_${random_id}"
       git -C "${nixos_dir}" checkout -b "${branch_name}"
-      git -C "${nixos_dir}" add "${secrets_master_file}"
+      git -C "${nixos_dir}" add "${data_dev_encrypt_secrets_master_file}"
       git -C "${nixos_dir}" commit --message "Commit data encryption key for host '${target_hostname}'."
       git -C "${nixos_dir}" push -u origin "${branch_name}"
       git -C "${nixos_dir}" checkout "${main_repo_branch}"
@@ -669,7 +677,7 @@ EOF_sfdisk_01
       echo -e "The installer will continue once the pull request has been merged into branch \"${main_repo_branch}\".\n"
 
       declare -i git_pull_and_decrypt_secrets_rc=-1
-      while [[ ! -f "${secrets_key_file}" ]]; do
+      while [[ ! -f "${data_dev_encrypt_key_file}" ]]; do
         sleep 10
         echo -n "."
         if ((decrypt_secrets_tries % 18 != 0)); then
@@ -681,15 +689,21 @@ EOF_sfdisk_01
           git_pull_and_decrypt_secrets >/dev/null
           git_pull_and_decrypt_secrets_rc="${?}"
           echo_info "exit code of try #${decrypt_secrets_tries}: ${git_pull_and_decrypt_secrets_rc}"
-          ls -ldp "${secrets_key_file}" || true
+          ls -ldp "${data_dev_encrypt_key_file}" || true
           echo
         fi
         ((decrypt_secrets_tries++))
       done
       echo
     fi
-    echo_info "found the data encryption key for this host \"${target_hostname}\": \"${secrets_key_file}\"."
-    ls -ldp "${secrets_key_file}"
+    echo_info "found the data encryption key for this host \"${target_hostname}\": \"${data_dev_encrypt_key_file}\"."
+    ls -ldp "${data_dev_encrypt_key_file}"
+    if [[ -f "${data_dev_encrypt_rescue_key_file}" ]]; then
+      echo_info "found the rescue data encryption key for this host \"${target_hostname}\": \"${data_dev_encrypt_rescue_key_file}\""
+      ls -ldp "${data_dev_encrypt_rescue_key_file}"
+    else
+      echo_warn "not found any rescue data encryption key for this host \"${target_hostname}\"!"
+    fi
   fi
 
   # Now that the repos on GitHub should contain all the information,
@@ -700,7 +714,7 @@ EOF_sfdisk_01
 
   declare -r org_key_dir="${install_dir}/var/lib/msf-ocb"
   mkdir --parents "${org_key_dir}"
-  cp /tmp/id_tunnel /tmp/id_tunnel.pub "${org_key_dir}"
+  cp "${id_tunnel_key_file}" "${id_tunnel_key_file}.pub" "${org_key_dir}"
 
   # Create an encrypted data partition, unless requested not to do so
   if ((create_data_part)); then
@@ -722,10 +736,14 @@ EOF_sfdisk_01
       --use-urandom \
       luksFormat \
       --type luks2 \
-      --key-file "${secrets_key_file}" \
+      --key-file "${data_dev_encrypt_key_file}" \
       "${data_dev}"
+    # Add the rescue disk encryption key if it exists to the LUKS device using the primary disk encryption key
+    if [[ -f "${data_dev_encrypt_rescue_key_file}" ]]; then
+      cryptsetup luksAddKey "${data_dev}" --key-file="${data_dev_encrypt_key_file}" < "${data_dev_encrypt_rescue_key_file}"
+    fi
     cryptsetup open \
-      --key-file "${secrets_key_file}" \
+      --key-file "${data_dev_encrypt_key_file}" \
       "${data_dev}" nixos_data_decrypted
     mkfs.ext4 -e remount-ro \
       -m 1 \
@@ -745,7 +763,7 @@ EOF_sfdisk_01
   if ((do_install)); then
     echo
     echo_info "installing the new customised NixOS system on local disk..."
-    GIT_SSH_COMMAND="ssh -i '${org_key_dir}/id_tunnel'" nixos-install \
+    GIT_SSH_COMMAND="ssh -i '${org_key_dir}/${id_tunnel_key_file_name}'" nixos-install \
       --no-root-passwd \
       --max-jobs 4 \
       --option extra-experimental-features 'flakes nix-command' \
@@ -753,7 +771,7 @@ EOF_sfdisk_01
   else
     echo
     echo_info "rebuilding the configuration of this pre-installed NixOS system..."
-    GIT_SSH_COMMAND="ssh -i '${org_key_dir}/id_tunnel'" nixos-rebuild \
+    GIT_SSH_COMMAND="ssh -i '${org_key_dir}/${id_tunnel_key_file_name}'" nixos-rebuild \
       --option extra-experimental-features 'flakes nix-command' \
       --flake "${main_repo_flake}#${target_hostname}" \
       switch
