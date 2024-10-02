@@ -467,8 +467,8 @@ EOF_sfdisk_01
       boot_part="/dev/disk/by-partlabel/nixos_boot"
       lvm_part="/dev/disk/by-partlabel/nixos_lvm"
     else
-      boot_part="${install_dev}1"
-      lvm_part="${install_dev}2"
+      boot_part="/dev/${lsblk ${install_dev} --json | jq --raw-output --argjson ix 0 '.blockdevices | .[0] | .children | map(.name) | .[$ix]'}"
+      lvm_part="/dev/${lsblk ${install_dev} --json | jq --raw-output --argjson ix 1 '.blockdevices | .[0] | .children | map(.name) | .[$ix]'}"
     fi
 
     wait_for_devices "${lvm_part}"
