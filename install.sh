@@ -471,6 +471,7 @@ EOF_sfdisk_01
       boot_part="/dev/disk/by-partlabel/nixos_boot"
       lvm_part="/dev/disk/by-partlabel/nixos_lvm"
     else
+      udevadm settle
       boot_part="/dev/$(lsblk ${install_dev} --json | jq --raw-output --argjson ix 0 '.blockdevices | .[0] | .children | map(.name) | .[$ix]')"
       lvm_part="/dev/$(lsblk ${install_dev} --json | jq --raw-output --argjson ix 1 '.blockdevices | .[0] | .children | map(.name) | .[$ix]')"
     fi
