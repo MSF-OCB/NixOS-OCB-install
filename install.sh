@@ -16,6 +16,10 @@
   # Set up the shell environment
   set -euo pipefail
   shopt -s extglob globstar nullglob
+  
+  # New pakages addition in the nix-shell path in the top is not working 
+  PATH=$PATH:"$(nix build 'nixpkgs#jq.bin' --print-out-paths)/bin"
+  export PATH
 
   declare -r script_name="install.sh"
   # TODO: keep script version string up-to-date
