@@ -1,5 +1,5 @@
 #! /usr/bin/env nix-shell
-#! nix-shell -i bash --packages bash nettools git
+#! nix-shell -i bash --packages bash nettools git jq
 # shellcheck shell=bash
 { # Prevent execution if this script was only partially downloaded - BEGIN
 
