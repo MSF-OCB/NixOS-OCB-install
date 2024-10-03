@@ -1,5 +1,5 @@
 #! /usr/bin/env nix-shell
-#! nix-shell -i bash --packages bash nettools git
+#! nix-shell -i bash --packages bash nettools git jq
 # shellcheck shell=bash
 { # Prevent execution if this script was only partially downloaded - BEGIN
 
@@ -19,7 +19,7 @@
 
   declare -r script_name="install.sh"
   # TODO: keep script version string up-to-date
-  declare -r script_version="v2024.09.12.ALPHA2"
+  declare -r script_version="v2024.10.03.ALPHA1"
   declare -r script_title="MSF-OCB customised NixOS Linux installation script (unified repo + flakes)"
 
   ##########
@@ -356,12 +356,19 @@
   declare -r github_nixos_robot_name="OCB NixOS Robot"
   declare -r github_nixos_robot_email="69807852+nixos-ocb@users.noreply.github.com"
 
-  # If command 'git' is not available, try to get it via its Nix package and add its folder to the system path
+  # If some extra commands required by this script are not available, try to get them via their Nix packages and add their folders to the system path
   if ! type -p "git" >&/dev/null; then
     echo_info "downloading missing required software package 'git'..."
-    PATH="$(nix build 'nixpkgs#git')/bin:${PATH}"
+    PATH="${PATH}:$(nix build 'nixpkgs#git' --print-out-paths)/bin"
     export PATH
     git --version
+    echo
+  fi
+  if ! type -p "jq" >&/dev/null; then
+    echo_info "downloading missing required software package 'jq'..."
+    PATH="${PATH}:$(nix build 'nixpkgs#jq.bin' --print-out-paths)/bin"
+    export PATH
+    jq --version
     echo
   fi
 
@@ -467,8 +474,9 @@ EOF_sfdisk_01
       boot_part="/dev/disk/by-partlabel/nixos_boot"
       lvm_part="/dev/disk/by-partlabel/nixos_lvm"
     else
-      boot_part="${install_dev}1"
-      lvm_part="${install_dev}2"
+      udevadm settle
+      boot_part="/dev/$(lsblk "${install_dev}" --json | jq --raw-output --argjson ix 0 '.blockdevices | .[0] | .children | map(.name) | .[$ix]')"
+      lvm_part="/dev/$(lsblk "${install_dev}" --json | jq --raw-output --argjson ix 1 '.blockdevices | .[0] | .children | map(.name) | .[$ix]')"
     fi
 
     wait_for_devices "${lvm_part}"
