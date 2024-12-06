@@ -13,7 +13,7 @@
   # $ curl -L https://github.com/MSF-OCB/NixOS-OCB-install/raw/main/install.sh | sudo bash -s -- -h <hostname> -d <system_device>
   # *WARNING*: *ALL* contents of any specified disk devices will be permanently *LOST*!
 
-  echo "This is Old NixOS instllation script not used anymore, Please read following the documentation for new installation process, https://github.com/MSF-OCB/NixOS-OCB/wiki/Install-NixOS-using-nixos%E2%80%90anywhere"
+  echo "This is Old NixOS instllation script not used anymore, please read following the documentation for new installation process, https://github.com/MSF-OCB/NixOS-OCB/wiki/Install-NixOS-using-nixos%E2%80%90anywhere"
   exit 1
 
   # Set up the shell environment
